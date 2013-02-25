@@ -29,24 +29,25 @@ data Dictionary = Dictionary { options  :: ![Ifo.Opt],
 
 openBinaryFile' :: String -> IOMode -> IO (Maybe Handle)
 openBinaryFile' s m =
-    doesFileExist s >>= \b -> do
-    case b of
-        False -> return Nothing
-        True -> openBinaryFile s m >>= return . Just 
+    doesFileExist s >>= \b ->
+    if b
+       then liftM Just (openBinaryFile s m)
+       else return Nothing
 
 doFile :: String -> IO (Maybe (Handle, Handle, Handle))
 doFile fn =
     let fn' = fst $ splitExtension fn
         exts = ["ifo", "idx", "dict"]
         open n e = do
-                   f <- lift $ openBinaryFile' (addExtension n e) ReadMode
+                   let n' = addExtension n e 
+                   f <- lift $ openBinaryFile' n' ReadMode
                    case f of
                         Nothing ->
-                          tell ["Opening " ++ (addExtension fn' e) ++ " failed"]
+                          tell ["Opening " ++ n' ++ " failed"]
                         _ ->
-                          tell ["Opening " ++ (addExtension fn' e) ++ " ok"]
+                          tell ["Opening " ++ n' ++ " ok"]
                    return f
-        go = mapM (open fn') exts >>= return.sequence
+        go = liftM sequence $ mapM (open fn') exts
 
     in runWriterT go >>= \r -> case r of
         (Nothing, log) -> mapM_ putStrLn log >> return Nothing
@@ -62,7 +63,7 @@ withDictionary path f =
                 Left e -> putStrLn e
                 Right info' -> do
                     let [ifs] = [s | Ifo.IdxFileSize s <- info']
-                    idx <- (Idx.parse32 ifs) <$> Lazy.hGetContents y
+                    idx <- Idx.parse32 ifs <$> Lazy.hGetContents y
                     dict <- Lazy.hGetContents z
                     f (Dictionary info' idx dict)
 
@@ -70,17 +71,17 @@ removeTags :: Text -> Text
 removeTags s = mconcat [t | TagText t <- parseTags s] 
  
 find :: Text -> Dictionary -> IO ()
-find w d = do
+find w d =
     case Map.lookup w (index d) of
          Nothing -> Text.putStrLn (w <> " not found")
          Just at -> Text.putStrLn $ removeTags $ Dict.lookup at (dict d)
- 
-main = do
-    args <- getArgs
-    case args of
-        [] -> error "usage: HDict <dict> [word]"
-        (dict:word:[]) ->
-             withDictionary dict $ \d -> find (pack word) d
-        (dict:[]) ->
-             withDictionary dict $ \d -> forever $
-                Text.getLine >>= flip find d
+
+main :: IO ()
+main = getArgs >>= \args ->
+       case args of
+            [] -> error "usage: HDict <dict> [word]"
+            (dict:word:[]) ->
+                 withDictionary dict $ \d -> find (pack word) d
+            (dict:[]) ->
+                 withDictionary dict $ \d -> forever $
+                    Text.getLine >>= flip find d
