@@ -1,0 +1,15 @@
+usage
+-----
+
+Look up word:
+
+   hdict </path/to/dictionary/file> word
+
+Wait for input:
+
+  hdict </path/to/dictionary/file>
+
+formats
+-------
+
+Uncompressed StarDict files (dict, idx, ifo).
