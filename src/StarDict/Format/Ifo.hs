@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
-module StarDict.Format.Ifo where
+module StarDict.Format.Ifo(parse,Opt(..)) where
 import Data.Text (Text)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Maybe (fromJust)
 import Control.Applicative
-import Data.Attoparsec.Text
+import Data.Attoparsec.Text hiding (parse)
 import Prelude hiding (unlines)
 import StarDict.Format.TH
 
