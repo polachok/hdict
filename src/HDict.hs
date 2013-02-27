@@ -21,8 +21,6 @@ import qualified StarDict.Format.Ifo as Ifo
 import qualified StarDict.Format.Dict as Dict
 import Control.Applicative ((<$>))
 
-import Debug.Trace
-
 data Dictionary = Dictionary { options  :: ![Ifo.Opt],
                                index  :: Map Text (Integer, Integer),
                                dict :: Lazy.ByteString }
@@ -38,20 +36,19 @@ doFile :: String -> IO (Maybe (Handle, Handle, Handle))
 doFile fn =
     let fn' = fst $ splitExtension fn
         exts = ["ifo", "idx", "dict"]
-        open n e = do
-                   let n' = addExtension n e 
-                   f <- lift $ openBinaryFile' n' ReadMode
-                   case f of
-                        Nothing ->
-                          tell ["Opening " ++ n' ++ " failed"]
-                        _ ->
-                          tell ["Opening " ++ n' ++ " ok"]
-                   return f
-        go = liftM sequence $ mapM (open fn') exts
+        open n e = let n' = addExtension n e in
+                   MaybeT . WriterT $ do
+                        f <- openBinaryFile' n' ReadMode
+                        runWriterT $ do
+                            tell ["Opening " ++ n']
+                            return f
 
-    in runWriterT go >>= \r -> case r of
-        (Nothing, log) -> mapM_ putStrLn log >> return Nothing
-        (Just (x:y:z:[]), _) -> return $ Just (x,y,z)
+    in (runWriterT $ runMaybeT $ mapM (open fn') exts) >>= \r ->
+      case r of
+        (Nothing, log) ->
+             (putStrLn $ last log ++ " failed") >> return Nothing
+        (Just (x:y:z:[]), _) ->
+             return $ Just (x,y,z)
 
 withDictionary :: String -> (Dictionary -> IO ()) -> IO ()
 withDictionary path f =
@@ -69,7 +66,7 @@ withDictionary path f =
 
 removeTags :: Text -> Text
 removeTags s = mconcat [t | TagText t <- parseTags s] 
- 
+
 find :: Text -> Dictionary -> IO ()
 find w d =
     case Map.lookup w (index d) of
