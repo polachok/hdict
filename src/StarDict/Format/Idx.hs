@@ -13,12 +13,9 @@ import qualified Data.Map as Map
 data Entry32 = Entry32 !Text !Integer !Integer
 data Entry64 = Entry64 !Text !Integer !Integer
 
+zeroTerminatedUtf8String :: Get Text
 zeroTerminatedUtf8String =
-    let go = do
-         c <- lift getWord8
-         when (c /= 0) $ tell [c] >> go
-    in
-    liftM (decodeUtf8 . BS.pack) $ execWriterT go
+    fmap (decodeUtf8 . mconcat . LBS.toChunks) getLazyByteStringNul
 
 instance Binary Entry32 where
     put _ = undefined
